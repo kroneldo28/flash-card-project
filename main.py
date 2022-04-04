@@ -1,13 +1,17 @@
 from tkinter import *
 import pandas
+from pandas import DataFrame
 import random
 
 
 # ------------ CONSTANTS ------------------
+
+
 BACKGROUND_COLOR = "#B1DDC6"
 FONT_TITLE = ("Arial", 40, "italic")
 FONT_WORD = ("Arial", 60, "bold")
 timer = None
+current_card = {}
 
 # We create the window with its configuration
 window = Tk()
@@ -16,26 +20,39 @@ window.title("Flashy")
 window.config(bg=BACKGROUND_COLOR, pady=50, padx=50)
 
 # ---------------------- DATA -----------------------------
-data = pandas.read_csv("data/french_words.csv")
-data_dict = data.to_dict(orient="records")
+try:
+    data = pandas.read_csv("data/words_to_learn.csv")
+except FileNotFoundError:
+    data = pandas.read_csv("data/french_words.csv")
+finally:
+    data_dict = data.to_dict(orient="records")
 
 
 # ---------------------- Functions -------------------------
-def random_word():
+def next_card():
+    global timer, current_card
+    current_card = random.choice(data_dict)
+    french_word = current_card["French"]
+    english_word = current_card["English"]
+    canvas.itemconfig(canvas_image, image=front_image)
+    canvas.itemconfig(title_text, text="French", fill="black")
+    canvas.itemconfig(word_text, text=french_word, fill="black")
+    # We trigger a 3s timer to automatically generate a new card
+    timer = window.after(3000, turn_card, english_word)
+
+
+def word_known():
+    global timer, current_card
+    window.after_cancel(timer)
+    # We remove the learned words from the list
+    data_dict.remove(current_card)
+    next_card()
+
+
+def word_unknown():
     global timer
-    if timer is None:
-        word_dict = random.choice(data_dict)
-        french_word = word_dict["French"]
-        english_word = word_dict["English"]
-        canvas.itemconfig(canvas_image, image=front_image)
-        canvas.itemconfig(title_text, text="French", fill="black")
-        canvas.itemconfig(word_text, text=french_word, fill="black")
-        # We trigger a 3s timer to automatically generate a new card
-        timer = window.after(3000, turn_card, english_word)
-    else:
-        window.after_cancel(timer)
-        timer = None
-        random_word()
+    window.after_cancel(timer)
+    next_card()
 
 
 def turn_card(word):
@@ -56,13 +73,18 @@ canvas.grid(column=0, row=0, columnspan=2)
 
 # We create the buttons
 right_image = PhotoImage(file="images/right.png")
-right_button = Button(image=right_image, highlightbackground=BACKGROUND_COLOR, command=random_word)
+right_button = Button(image=right_image, highlightbackground=BACKGROUND_COLOR, command=word_known)
 right_button.grid(column=1, row=1)
 wrong_image = PhotoImage(file="images/wrong.png")
-wrong_button = Button(image=wrong_image, highlightbackground=BACKGROUND_COLOR, command=random_word)
+wrong_button = Button(image=wrong_image, highlightbackground=BACKGROUND_COLOR, command=word_unknown)
 wrong_button.grid(column=0, row=1)
 
 # So that the title and words are initialized with actual data from the csv file
-random_word()
+next_card()
+
 
 window.mainloop()
+
+# We create the csv of words still to learn
+dataframe_to_learn = DataFrame(data_dict)
+dataframe_to_learn.to_csv("data/words_to_learn.csv", index=False)
